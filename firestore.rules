@@ -6,12 +6,12 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if signedIn();
+      allow get, list: if signedIn();
       allow create, update: if signedIn() && request.auth.uid == userId;
     }
 
     match /friendEdges/{edgeId} {
-      allow read: if signedIn()
+      allow get, list: if signedIn()
         && request.auth.uid in resource.data.participants;
       allow create: if signedIn()
         && request.auth.uid in request.resource.data.participants
@@ -31,7 +31,7 @@ service cloud.firestore {
 
     // Kampus Frekansı — campus_messages (anonim mesajlar, uid saxlanmır)
     match /campus_messages/{uni}/messages/{msgId} {
-      allow read: if signedIn();
+      allow get, list: if signedIn();
       allow create: if signedIn()
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0

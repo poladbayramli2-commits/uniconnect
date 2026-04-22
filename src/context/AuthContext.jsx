@@ -68,38 +68,58 @@ export function AuthProvider({ children }) {
     const verifiedStudent = isVerifiedStudentEmail(email);
     const ref = doc(firebase.db, COL.USERS, u.uid);
     const existing = await getDocWithRetry(firebase.db, ref);
+    
+    // Əgər ad yoxdursa, u.displayName-dən götür
+    let fName = partial.firstName || "";
+    let lName = partial.lastName || "";
+    if (!fName && !lName && u.displayName) {
+      const parts = u.displayName.trim().split(/\s+/);
+      fName = parts[0] || "";
+      lName = parts.slice(1).join(" ") || "";
+    }
+
     const base = {
       email,
       verifiedStudent,
-      photoURL: u.photoURL || "",
+      photoURL: u.photoURL || u.photoURL || "",
       updatedAt: serverTimestamp(),
     };
-    if (!existing.exists()) {
-      await setDoc(ref, {
-        ...base,
-        firstName: partial.firstName || "",
-        lastName: partial.lastName || "",
-        age: partial.age ?? null,
-        course: partial.course ?? null,
-        university: partial.university || "",
-        major: partial.major || "",
-        hobbies: partial.hobbies || [],
-        city: partial.city || "",
-        puzzleWins: 0,
-        createdAt: serverTimestamp(),
-      });
-    } else {
-      await setDoc(
-        ref,
-        {
+
+    try {
+      if (!existing.exists()) {
+        await setDoc(ref, {
           ...base,
-          ...partial,
-        },
-        { merge: true },
-      );
+          firstName: fName,
+          lastName: lName,
+          age: partial.age ?? null,
+          course: partial.course ?? null,
+          university: partial.university || "",
+          major: partial.major || "",
+          hobbies: partial.hobbies || [],
+          city: partial.city || "",
+          puzzleWins: 0,
+          createdAt: serverTimestamp(),
+        });
+        console.log("[AuthContext] Yeni istifadəçi sənədi yaradıldı.");
+      } else {
+        await setDoc(
+          ref,
+          {
+            ...base,
+            ...partial,
+            firstName: fName || existing.data().firstName || "",
+            lastName: lName || existing.data().lastName || "",
+          },
+          { merge: true },
+        );
+        console.log("[AuthContext] Mövcud istifadəçi sənədi yeniləndi.");
+      }
+      const snap = await getDocWithRetry(firebase.db, ref);
+      setProfile({ id: snap.id, ...snap.data() });
+    } catch (err) {
+      console.error("[AuthContext] Database-ə yazmaq alınmadı:", err);
+      throw err;
     }
-    const snap = await getDocWithRetry(firebase.db, ref);
-    setProfile({ id: snap.id, ...snap.data() });
   }
 
   async function signInGoogle() {

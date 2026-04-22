@@ -59,25 +59,17 @@ export default function Explore() {
   }, [user]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!user || !firebaseReady || !firebase) {
-        setStudents([]);
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const rows = await DbService.getAllUsers(user.uid);
-        if (!cancelled) setStudents(rows);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    if (!user || !firebaseReady || !firebase) {
+      setStudents([]);
+      setLoading(false);
+      return;
     }
-    load();
-    return () => {
-      cancelled = true;
-    };
+    setLoading(true);
+    const unsub = DbService.subscribeToAllUsers(user.uid, (rows) => {
+      setStudents(rows);
+      setLoading(false);
+    });
+    return () => unsub();
   }, [user]);
 
   const filtered = useMemo(() => {
@@ -94,6 +86,7 @@ export default function Explore() {
       const blob = [
         s.firstName,
         s.lastName,
+        s.email,
         s.university,
         s.major,
         ...(s.hobbies || []),
@@ -125,7 +118,7 @@ export default function Explore() {
         <div>
           <h2 className="text-lg font-semibold text-white">Explore</h2>
           <p className="text-sm text-slate-400">
-            Ana səhifə — məktublar, emosiya uyumu və tələbə kəşfi.
+            Ana səhifə — tələbə kəşfi və əlaqələr. {students.length > 0 ? `(${students.length} tələbə tapıldı)` : ""}
           </p>
         </div>
         <div className="hidden rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-200 sm:block">
@@ -280,7 +273,9 @@ export default function Explore() {
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate font-semibold text-white group-hover:text-emerald-100">
-                      {s.firstName} {s.lastName}
+                      {s.firstName || s.lastName 
+                        ? `${s.firstName} ${s.lastName}`.trim() 
+                        : s.email?.split("@")[0] || "Anonim"}
                     </p>
                     {s.verifiedStudent && (
                       <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">

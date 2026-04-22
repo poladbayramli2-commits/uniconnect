@@ -35,6 +35,25 @@ export const DbService = {
     return snap.exists() ? { id: snap.id, ...snap.data() } : null;
   },
 
+  subscribeToAllUsers(excludeUid, callback, max = 80) {
+    const col = collection(firebase.db, COL.USERS);
+    const q = query(col, limit(max));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const rows = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((u) => u.id !== excludeUid);
+        console.log(`[DbService] ${rows.length} istifadəçi yükləndi.`);
+        callback(rows);
+      },
+      (err) => {
+        console.error("[DbService] İstifadəçiləri yükləmək mümkün olmadı:", err);
+        callback([]);
+      }
+    );
+  },
+
   // --- KAMPUS FREKANSI (ANONİM ÇAT) ---
   subscribeToCampusMessages(slug, callback) {
     const q = query(
