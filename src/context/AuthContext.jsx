@@ -20,6 +20,7 @@ import { getDocWithRetry } from "../utils/firestoreRetry.js";
 import { humanizeFirebaseError } from "../utils/firebaseErrors.js";
 import { isAdminEmail } from "../config/admin.js";
 import { isVerifiedStudentEmail } from "../utils/student.js";
+import { ApiService } from "../services/ApiService.js";
 
 const AuthContext = createContext(null);
 
@@ -86,39 +87,29 @@ export function AuthProvider({ children }) {
     };
 
     try {
-      if (!existing.exists()) {
-        await setDoc(ref, {
-          ...base,
-          firstName: fName,
-          lastName: lName,
-          age: partial.age ?? null,
-          course: partial.course ?? null,
-          university: partial.university || "",
-          major: partial.major || "",
-          hobbies: partial.hobbies || [],
-          city: partial.city || "",
-          puzzleWins: 0,
-          createdAt: serverTimestamp(),
-        });
-        console.log("[AuthContext] Yeni istifadəçi sənədi yaradıldı.");
-      } else {
-        await setDoc(
-          ref,
-          {
-            ...base,
-            ...partial,
-            firstName: fName || existing.data().firstName || "",
-            lastName: lName || existing.data().lastName || "",
-          },
-          { merge: true },
-        );
-        console.log("[AuthContext] Mövcud istifadəçi sənədi yeniləndi.");
+      // MongoDB-yə qeydiyyat/yeniləmə sorğusu göndər
+      const res = await ApiService.users.register({
+        uid: u.uid,
+        email,
+        firstName: fName,
+        lastName: lName,
+        photoURL: u.photoURL || ""
+      });
+
+      if (res.success) {
+        // Əgər əlavə məlumatlar varsa, onları da yenilə
+        if (Object.keys(partial).length > 0) {
+          const updateRes = await ApiService.users.updateProfile(u.uid, partial);
+          if (updateRes.success) {
+            setProfile(updateRes.data);
+          }
+        } else {
+          setProfile(res.data);
+        }
+        console.log("[AuthContext] MongoDB istifadəçi sənədi sinxronizasiya edildi.");
       }
-      const snap = await getDocWithRetry(firebase.db, ref);
-      setProfile({ id: snap.id, ...snap.data() });
     } catch (err) {
-      console.error("[AuthContext] Database-ə yazmaq alınmadı:", err);
-      throw err;
+      console.error("[AuthContext] MongoDB-yə yazmaq alınmadı:", err);
     }
   }
 

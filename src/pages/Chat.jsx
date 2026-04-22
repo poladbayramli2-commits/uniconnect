@@ -4,7 +4,7 @@ import { ArrowLeft, Loader2, Send } from "lucide-react";
 import { firebase, firebaseReady } from "../firebase.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { chatIdForPair } from "../utils/student.js";
-import { DbService } from "../services/db.js";
+import { ApiService } from "../services/ApiService.js";
 
 export default function Chat() {
   const { friendId } = useParams();
@@ -19,43 +19,30 @@ export default function Chat() {
   const bottomRef = useRef(null);
 
   useEffect(() => {
-    if (!user || !firebaseReady || !firebase) {
+    if (!user) {
       setEdges([]);
       setLoadingFriends(false);
       return;
     }
-    setLoadingFriends(true);
-    const unsub = DbService.subscribeToFriendEdges(user.uid, (rows) => {
-      setEdges(rows);
-      setLoadingFriends(false);
-    });
-    return () => unsub();
-  }, [user]);
-
-  useEffect(() => {
     let cancelled = false;
-    async function hydrateFriends() {
-      if (!user || edges.length === 0) {
-        setFriends([]);
-        return;
+    async function loadEdges() {
+      setLoadingFriends(true);
+      try {
+        const res = await ApiService.friends.list(user.uid);
+        if (!cancelled && res.success) {
+          setEdges(res.data);
+          // MongoDB edge-lərində artıq otherUser məlumatı var
+          setFriends(res.data.map(e => e.otherUser).filter(Boolean));
+        }
+      } finally {
+        if (!cancelled) setLoadingFriends(false);
       }
-      const acceptedEdges = edges.filter((e) => e.status === "accepted");
-      const others = acceptedEdges.map((e) =>
-        e.participants.find((p) => p !== user.uid),
-      );
-      const uniq = [...new Set(others)];
-      const out = [];
-      for (const uid of uniq) {
-        const profile = await DbService.getUserProfile(uid);
-        if (profile) out.push(profile);
-      }
-      if (!cancelled) setFriends(out);
     }
-    hydrateFriends();
+    loadEdges();
     return () => {
       cancelled = true;
     };
-  }, [edges, user]);
+  }, [user]);
 
   const activeFriend = useMemo(
     () => friends.find((f) => f.id === friendId) || null,
@@ -63,38 +50,44 @@ export default function Chat() {
   );
 
   useEffect(() => {
-    if (!user || !friendId || !firebaseReady || !firebase) {
+    if (!user || !friendId) {
       setMessages([]);
       return;
     }
     const cid = chatIdForPair(user.uid, friendId);
-    return DbService.subscribeToMessages(cid, setMessages);
+    
+    async function loadMessages() {
+      try {
+        const res = await ApiService.messages.getChat(cid);
+        if (res.success) setMessages(res.data);
+      } catch (err) {
+        console.error("Mesajlar yüklənmədi:", err);
+      }
+    }
+    loadMessages();
+    // Real-time üçün socket.io bağlantısı bura əlavə olunacaq
   }, [user, friendId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, friendId]);
+  }, [messages.length]);
 
   async function onSend(e) {
     e.preventDefault();
-    if (!user || !friendId || !text.trim() || !firebaseReady || !firebase || sending)
-      return;
-    const accepted = edges.some(
-      (e) =>
-        e.status === "accepted" &&
-        e.participants.includes(user.uid) &&
-        e.participants.includes(friendId),
-    );
-    if (!accepted) return;
+    if (!user || !friendId || !text.trim() || sending) return;
     setSending(true);
     try {
       const cid = chatIdForPair(user.uid, friendId);
-      await DbService.sendMessage(cid, {
+      await ApiService.messages.send({
+        chatId: cid,
+        text,
         senderId: user.uid,
-        text: text.trim(),
-        participants: [user.uid, friendId].sort(),
+        participants: [user.uid, friendId],
       });
       setText("");
+      // Yenidən yüklə (Socket.io olduqda buna ehtiyac qalmayacaq)
+      const res = await ApiService.messages.getChat(cid);
+      if (res.success) setMessages(res.data);
     } finally {
       setSending(false);
     }

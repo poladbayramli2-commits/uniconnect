@@ -22,8 +22,6 @@ const userSchema = new mongoose.Schema({
 
 userSchema.index({ university: 1 });
 userSchema.index({ hobbies: 1 });
-userSchema.index({ email: 1 }, { unique: true });
-userSchema.index({ uid: 1 }, { unique: true });
 
 userSchema.pre('save', function(next) {
   this.updatedAt = new Date();

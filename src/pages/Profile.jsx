@@ -25,7 +25,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { UNIVERSITIES, HOBBY_SUGGESTIONS } from "../constants/universities.js";
 import { isVerifiedStudentEmail } from "../utils/student.js";
 import { localDateKey } from "../utils/dateKey.js";
-import { DbService } from "../services/db.js";
+import { ApiService } from "../services/ApiService.js";
 
 function hobbyOverlapLower(viewerHobbies = [], targetHobbies = []) {
   const v = new Set((viewerHobbies || []).map((x) => x.toLowerCase()));
@@ -97,13 +97,13 @@ export default function Profile() {
         return;
       }
       setLoadingTarget(true);
-      try {
-        const targetProfile = await DbService.getUserProfile(userId);
-        if (!cancelled) setTarget(targetProfile);
-        
-        const edgeData = await DbService.getFriendEdge(user.uid, userId);
-        if (!cancelled) setEdge(edgeData);
-      } finally {
+        try {
+          const res = await ApiService.users.getProfile(userId);
+          if (!cancelled && res.success) setTarget(res.data);
+          
+          const edgeRes = await ApiService.friends.checkStatus(user.uid, userId);
+          if (!cancelled && edgeRes.success) setEdge(edgeRes.data);
+        } finally {
         if (!cancelled) setLoadingTarget(false);
       }
     }
@@ -193,13 +193,13 @@ export default function Profile() {
     setFriendBusy(true);
     try {
       if (!edge || edge.status === "none") {
-        await DbService.sendFriendRequest(user.uid, target.id);
+        await ApiService.friends.sendRequest(user.uid, target.uid);
       } else if (edge.status === "pending" && edge.senderId !== user.uid) {
-        await DbService.acceptFriendRequest(edge.id);
+        await ApiService.friends.accept(edge._id);
       }
       // Yenidən yüklə
-      const edgeData = await DbService.getFriendEdge(user.uid, target.id);
-      setEdge(edgeData);
+      const edgeRes = await ApiService.friends.checkStatus(user.uid, target.uid);
+      if (edgeRes.success) setEdge(edgeRes.data);
     } catch (err) {
       console.error("Dostluq əməliyyatı xətası:", err);
     } finally {

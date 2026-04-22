@@ -8,12 +8,10 @@ import {
   where,
 } from "firebase/firestore";
 import { Heart, Mail, Search, Sparkles } from "lucide-react";
-import { firebase, firebaseReady } from "../firebase.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { UNIVERSITIES } from "../constants/universities.js";
 import { localDateKey } from "../utils/dateKey.js";
-import { COL } from "../models/firestorePaths.js";
-import { DbService } from "../services/db.js";
+import { ApiService } from "../services/ApiService.js";
 
 function byLetterDate(a, b) {
   const ta = a.createdAt?.seconds || 0;
@@ -59,18 +57,29 @@ export default function Explore() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || !firebaseReady || !firebase) {
+    if (!user) {
       setStudents([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const unsub = DbService.subscribeToAllUsers(user.uid, (rows) => {
-      // Özümüzü də siyahıda görmək istəyirik ki, bazanın canlı olduğunu bilək
-      setStudents(rows);
-      setLoading(false);
-    });
-    return () => unsub();
+    
+    async function loadUsers() {
+      try {
+        const res = await ApiService.users.getAll();
+        if (res.success) {
+          // MongoDB-dən gələn bütün tələbələr (özümüz daxil - debug üçün hələlik belə qalsın)
+          setStudents(res.data);
+        }
+      } catch (err) {
+        console.error("İstifadəçiləri yükləyərkən xəta:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadUsers();
+    // MongoDB-də real-time üçün gələcəkdə Socket.io və ya polling əlavə edilə bilər
   }, [user]);
 
   const filtered = useMemo(() => {
