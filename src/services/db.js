@@ -9,6 +9,8 @@ import {
   query,
   where,
   addDoc,
+  setDoc,
+  updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
 import { firebase } from "../firebase.js";
@@ -74,6 +76,33 @@ export const DbService = {
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       callback(rows);
     });
+  },
+
+  async sendFriendRequest(fromUid, toUid) {
+    const edgeId = [fromUid, toUid].sort().join("__");
+    const ref = doc(firebase.db, COL.FRIEND_EDGES, edgeId);
+    await setDoc(ref, {
+      participants: [fromUid, toUid].sort(),
+      senderId: fromUid,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  async acceptFriendRequest(edgeId) {
+    const ref = doc(firebase.db, COL.FRIEND_EDGES, edgeId);
+    await updateDoc(ref, {
+      status: "accepted",
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  async getFriendEdge(uid1, uid2) {
+    const edgeId = [uid1, uid2].sort().join("__");
+    const ref = doc(firebase.db, COL.FRIEND_EDGES, edgeId);
+    const snap = await getDoc(ref);
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
   },
 
   subscribeToMessages(chatId, callback) {

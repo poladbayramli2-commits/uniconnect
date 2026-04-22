@@ -17,13 +17,15 @@ import {
   LogOut,
   MessageCircle,
   UserPlus,
+  UserCheck,
+  Clock,
 } from "lucide-react";
 import { firebase, firebaseReady } from "../firebase.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { UNIVERSITIES, HOBBY_SUGGESTIONS } from "../constants/universities.js";
 import { isVerifiedStudentEmail } from "../utils/student.js";
-import { pairId } from "../utils/friends.js";
 import { localDateKey } from "../utils/dateKey.js";
+import { DbService } from "../services/db.js";
 
 function hobbyOverlapLower(viewerHobbies = [], targetHobbies = []) {
   const v = new Set((viewerHobbies || []).map((x) => x.toLowerCase()));
@@ -96,16 +98,11 @@ export default function Profile() {
       }
       setLoadingTarget(true);
       try {
-        const refDoc = doc(firebase.db, COL.USERS, userId);
-        const snap = await getDoc(refDoc);
-        if (!cancelled) {
-          setTarget(snap.exists() ? { id: snap.id, ...snap.data() } : null);
-        }
-        const pid = pairId(user.uid, userId);
-        const eSnap = await getDoc(doc(firebase.db, "friendEdges", pid));
-        if (!cancelled) {
-          setEdge(eSnap.exists() ? { id: eSnap.id, ...eSnap.data() } : null);
-        }
+        const targetProfile = await DbService.getUserProfile(userId);
+        if (!cancelled) setTarget(targetProfile);
+        
+        const edgeData = await DbService.getFriendEdge(user.uid, userId);
+        if (!cancelled) setEdge(edgeData);
       } finally {
         if (!cancelled) setLoadingTarget(false);
       }
@@ -191,50 +188,20 @@ export default function Profile() {
     );
   }
 
-  async function sendFriendRequest() {
+  async function handleFriendAction() {
     if (!user || !target || !firebaseReady || !firebase) return;
     setFriendBusy(true);
     try {
-      const id = pairId(user.uid, target.id);
-      const refEdge = doc(firebase.db, "friendEdges", id);
-      const existing = await getDoc(refEdge);
-      if (!existing.exists()) {
-        await setDoc(refEdge, {
-          participants: [user.uid, target.id].sort(),
-          status: "pending",
-          requester: user.uid,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      } else {
-        const data = existing.data();
-        if (data.status === "declined" || data.status === "none") {
-          await updateDoc(refEdge, {
-            status: "pending",
-            requester: user.uid,
-            updatedAt: serverTimestamp(),
-          });
-        }
+      if (!edge || edge.status === "none") {
+        await DbService.sendFriendRequest(user.uid, target.id);
+      } else if (edge.status === "pending" && edge.senderId !== user.uid) {
+        await DbService.acceptFriendRequest(edge.id);
       }
-      const snap = await getDoc(refEdge);
-      setEdge({ id: snap.id, ...snap.data() });
-    } finally {
-      setFriendBusy(false);
-    }
-  }
-
-  async function acceptFriendRequest() {
-    if (!user || !target || !firebaseReady || !firebase) return;
-    setFriendBusy(true);
-    try {
-      const id = pairId(user.uid, target.id);
-      const refEdge = doc(firebase.db, "friendEdges", id);
-      await updateDoc(refEdge, {
-        status: "accepted",
-        updatedAt: serverTimestamp(),
-      });
-      const snap = await getDoc(refEdge);
-      setEdge({ id: snap.id, ...snap.data() });
+      // Yenidən yüklə
+      const edgeData = await DbService.getFriendEdge(user.uid, target.id);
+      setEdge(edgeData);
+    } catch (err) {
+      console.error("Dostluq əməliyyatı xətası:", err);
     } finally {
       setFriendBusy(false);
     }
@@ -269,12 +236,11 @@ export default function Profile() {
   const verified = Boolean(display?.verifiedStudent);
 
   const friendStatus = edge?.status;
-  const requesterIsMe = edge?.requester === user.uid;
   const isFriend = friendStatus === "accepted";
   const pendingInbound =
-    friendStatus === "pending" && edge?.requester === target?.id;
+    friendStatus === "pending" && edge?.senderId === target?.id;
   const pendingOutbound =
-    friendStatus === "pending" && requesterIsMe && edge?.requester === user.uid;
+    friendStatus === "pending" && edge?.senderId === user?.uid;
 
   const dk = localDateKey();
   const sameMood =
@@ -446,7 +412,7 @@ export default function Profile() {
                   <button
                     type="button"
                     disabled={friendBusy}
-                    onClick={sendFriendRequest}
+                    onClick={handleFriendAction}
                     className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-400 disabled:opacity-60"
                   >
                     {friendBusy ? (
@@ -458,20 +424,23 @@ export default function Profile() {
                   </button>
                 )}
                 {pendingOutbound && (
-                  <span className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                    Dostluq istəyi gözləmədədir
-                  </span>
+                  <div className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                    <Clock className="h-4 w-4" />
+                    İstək göndərilib…
+                  </div>
                 )}
                 {pendingInbound && (
                   <button
                     type="button"
                     disabled={friendBusy}
-                    onClick={acceptFriendRequest}
+                    onClick={handleFriendAction}
                     className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-60"
                   >
                     {friendBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
+                    ) : (
+                      <UserCheck className="h-4 w-4" />
+                    )}
                     İstəyi qəbul et
                   </button>
                 )}
