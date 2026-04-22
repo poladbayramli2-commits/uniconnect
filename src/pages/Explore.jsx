@@ -8,9 +8,11 @@ import {
   where,
 } from "firebase/firestore";
 import { Heart, Mail, Search, Sparkles } from "lucide-react";
+import { firebase, firebaseReady } from "../firebase.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { UNIVERSITIES } from "../constants/universities.js";
 import { localDateKey } from "../utils/dateKey.js";
+import { COL } from "../models/firestorePaths.js";
 import { ApiService } from "../services/ApiService.js";
 
 function byLetterDate(a, b) {
