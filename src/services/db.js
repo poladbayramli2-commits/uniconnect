@@ -41,14 +41,13 @@ export const DbService = {
     return onSnapshot(
       q,
       (snap) => {
-        const rows = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((u) => u.id !== excludeUid);
-        console.log(`[DbService] ${rows.length} istifadəçi yükləndi.`);
+        const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // Debug üçün hər şeyi qaytarırıq, həmçinin özümüzü də (idealdır ki, bazanın işlədiyini görək)
+        console.log(`[DbService] Toplam ${rows.length} sənəd tapıldı.`);
         callback(rows);
       },
       (err) => {
-        console.error("[DbService] İstifadəçiləri yükləmək mümkün olmadı:", err);
+        console.error("[DbService] Firestore xətası:", err.code, err.message);
         callback([]);
       }
     );

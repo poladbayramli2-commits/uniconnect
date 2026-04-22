@@ -66,6 +66,7 @@ export default function Explore() {
     }
     setLoading(true);
     const unsub = DbService.subscribeToAllUsers(user.uid, (rows) => {
+      // Özümüzü də siyahıda görmək istəyirik ki, bazanın canlı olduğunu bilək
       setStudents(rows);
       setLoading(false);
     });
@@ -75,6 +76,7 @@ export default function Explore() {
   const filtered = useMemo(() => {
     const qt = qText.trim().toLowerCase();
     return students.filter((s) => {
+      // Özümüzü filter etmirik (Debug üçün)
       if (uni && s.university !== uni) return false;
       if (major && !(s.major || "").toLowerCase().includes(major.toLowerCase()))
         return false;
