@@ -22,6 +22,14 @@ export default function Frequency() {
     () => anonNicknameFromSeed(`${user?.uid || "x"}-${slug}`),
     [user?.uid, slug],
   );
+  const activeNicknames = useMemo(() => {
+    const set = new Set();
+    for (const m of msgs) {
+      if (!m?.nickname) continue;
+      set.add(m.nickname);
+    }
+    return Array.from(set);
+  }, [msgs]);
 
   useEffect(() => {
     if (!firebaseReady || !firebase || !user) return;
@@ -86,6 +94,33 @@ export default function Frequency() {
           </div>
         ))}
         <div ref={bottomRef} />
+      </div>
+
+      <div className="rounded-2xl border border-violet-500/25 bg-violet-950/15 p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-violet-200/80">
+          Hazırda Frekansda olanlar ({activeNicknames.length})
+        </p>
+        {activeNicknames.length === 0 ? (
+          <p className="mt-2 text-xs text-slate-400">
+            Hələ aktiv istifadəçi görünmür.
+          </p>
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {activeNicknames.map((name) => (
+              <span
+                key={name}
+                className={`rounded-full border px-2.5 py-1 text-xs ${
+                  name === nickname
+                    ? "border-violet-300/60 bg-violet-500/30 text-white"
+                    : "border-violet-400/30 bg-violet-500/10 text-violet-100"
+                }`}
+              >
+                {name}
+                {name === nickname ? " (sən)" : ""}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <form

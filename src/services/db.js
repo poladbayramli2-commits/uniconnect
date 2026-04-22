@@ -60,10 +60,20 @@ export const DbService = {
     const q = query(
       collection(firebase.db, COL.FRIEND_EDGES),
       where("participants", "array-contains", uid),
-      where("status", "==", "accepted")
     );
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  subscribeToFriendEdges(uid, callback) {
+    const q = query(
+      collection(firebase.db, COL.FRIEND_EDGES),
+      where("participants", "array-contains", uid),
+    );
+    return onSnapshot(q, (snap) => {
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      callback(rows);
+    });
   },
 
   subscribeToMessages(chatId, callback) {

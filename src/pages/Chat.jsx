@@ -24,20 +24,12 @@ export default function Chat() {
       setLoadingFriends(false);
       return;
     }
-    let cancelled = false;
-    async function loadEdges() {
-      setLoadingFriends(true);
-      try {
-        const rows = await DbService.getFriendEdges(user.uid);
-        if (!cancelled) setEdges(rows);
-      } finally {
-        if (!cancelled) setLoadingFriends(false);
-      }
-    }
-    loadEdges();
-    return () => {
-      cancelled = true;
-    };
+    setLoadingFriends(true);
+    const unsub = DbService.subscribeToFriendEdges(user.uid, (rows) => {
+      setEdges(rows);
+      setLoadingFriends(false);
+    });
+    return () => unsub();
   }, [user]);
 
   useEffect(() => {
@@ -47,7 +39,8 @@ export default function Chat() {
         setFriends([]);
         return;
       }
-      const others = edges.map((e) =>
+      const acceptedEdges = edges.filter((e) => e.status === "accepted");
+      const others = acceptedEdges.map((e) =>
         e.participants.find((p) => p !== user.uid),
       );
       const uniq = [...new Set(others)];
