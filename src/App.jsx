@@ -28,6 +28,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route
         path="/login"
         element={user && !loading ? <Navigate to="/explore" replace /> : <Login />}
@@ -104,7 +105,7 @@ export default function App() {
           </PrivateShell>
         }
       />
-      <Route path="*" element={<Navigate to="/explore" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }
