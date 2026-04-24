@@ -262,8 +262,8 @@ export default function Explore() {
               s.todayMoodDate === dkToday;
             return (
               <Link
-                key={s.id}
-                to={`/profile/${s.id}`}
+                key={s.uid || s._id}
+                to={`/profile/${s.uid}`}
                 className={`group flex gap-3 rounded-2xl border bg-gradient-to-br from-slate-900/90 to-slate-950 p-4 transition hover:shadow-lg ${
                   moodPeer
                     ? "border-pink-500/60 ring-2 ring-pink-500/30 hover:border-pink-400/80"

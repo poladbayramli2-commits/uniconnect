@@ -40,7 +40,18 @@ router.get('/pending/:uid', async (req, res) => {
       status: 'pending'
     }).sort({ createdAt: -1 });
 
-    res.json({ success: true, data: pendingEdges });
+    // Hər pending istək üçün göndərən şəxsin profil məlumatlarını əlavə et
+    const pendingWithProfiles = await Promise.all(
+      pendingEdges.map(async (edge) => {
+        const senderProfile = await User.findOne({ uid: edge.senderId }, 'uid firstName lastName photoURL email university');
+        return {
+          ...edge.toObject(),
+          sender: senderProfile
+        };
+      })
+    );
+
+    res.json({ success: true, data: pendingWithProfiles });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

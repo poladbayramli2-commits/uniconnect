@@ -70,42 +70,30 @@ export function AuthProvider({ children }) {
     const ref = doc(firebase.db, COL.USERS, u.uid);
     const existing = await getDocWithRetry(firebase.db, ref);
     
-    // Əgər ad yoxdursa, u.displayName-dən götür
-    let fName = partial.firstName || "";
-    let lName = partial.lastName || "";
-    if (!fName && !lName && u.displayName) {
-      const parts = u.displayName.trim().split(/\s+/);
-      fName = parts[0] || "";
-      lName = parts.slice(1).join(" ") || "";
-    }
-
-    const base = {
+    // Yalnız data varsa göndər
+    const registerData = {
+      uid: u.uid,
       email,
-      verifiedStudent,
-      photoURL: u.photoURL || u.photoURL || "",
-      updatedAt: serverTimestamp(),
     };
+
+    if (partial.firstName) registerData.firstName = partial.firstName;
+    if (partial.lastName) registerData.lastName = partial.lastName;
+    if (u.photoURL) registerData.photoURL = u.photoURL;
+
+    // Əgər adlar hələ də yoxdursa və u.displayName varsa
+    if (!registerData.firstName && !registerData.lastName && u.displayName) {
+      const parts = u.displayName.trim().split(/\s+/);
+      registerData.firstName = parts[0] || "";
+      registerData.lastName = parts.slice(1).join(" ") || "";
+    }
 
     try {
       // MongoDB-yə qeydiyyat/yeniləmə sorğusu göndər
-      const res = await ApiService.users.register({
-        uid: u.uid,
-        email,
-        firstName: fName,
-        lastName: lName,
-        photoURL: u.photoURL || ""
-      });
+      console.log("[AuthContext] Registering user in MongoDB:", registerData);
+      const res = await ApiService.users.register(registerData);
 
       if (res.success) {
-        // Əgər əlavə məlumatlar varsa, onları da yenilə
-        if (Object.keys(partial).length > 0) {
-          const updateRes = await ApiService.users.updateProfile(u.uid, partial);
-          if (updateRes.success) {
-            setProfile(updateRes.data);
-          }
-        } else {
-          setProfile(res.data);
-        }
+        setProfile(res.data);
         console.log("[AuthContext] MongoDB istifadəçi sənədi sinxronizasiya edildi.");
       }
     } catch (err) {
@@ -129,7 +117,7 @@ export function AuthProvider({ children }) {
     return cred.user;
   }
 
-  async function registerEmail(email, password, displayName) {
+  async function registerEmail(email, password, displayName, extraData = {}) {
     if (!firebaseReady || !firebase) {
       throw new Error("Firebase təyin edilməyib (.env).");
     }
@@ -149,7 +137,7 @@ export function AuthProvider({ children }) {
       const parts = (displayName || "").trim().split(/\s+/).filter(Boolean);
       const firstName = parts[0] || "";
       const lastName = parts.slice(1).join(" ") || "";
-      await upsertUserDocument(cred.user, { firstName, lastName });
+      await upsertUserDocument(cred.user, { firstName, lastName, ...extraData });
     } catch (e) {
       try {
         await signOut(firebase.auth);
@@ -191,9 +179,14 @@ export function AuthProvider({ children }) {
     if (!firebaseReady || !firebase) return;
     const u = firebase.auth.currentUser;
     if (!u) return;
-    const ref = doc(firebase.db, COL.USERS, u.uid);
-    const snap = await getDocWithRetry(firebase.db, ref);
-    if (snap.exists()) setProfile({ id: snap.id, ...snap.data() });
+    try {
+      const res = await ApiService.users.getProfile(u.uid);
+      if (res.success) {
+        setProfile(res.data);
+      }
+    } catch (err) {
+      console.error("[AuthContext] Profil yenilənmədi:", err);
+    }
   }
 
   const isAdmin = Boolean(user?.email && isAdminEmail(user.email));

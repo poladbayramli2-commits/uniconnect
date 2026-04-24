@@ -3,6 +3,55 @@ import Message from '../models/Message.js';
 
 const router = express.Router();
 
+// OXUNMAMIŞ MESAJ SAYI (badge üçün)
+router.get('/unread/:uid', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const rows = await Message.aggregate([
+      {
+        $match: {
+          participants: uid,
+          senderId: { $ne: uid },
+          readBy: { $ne: uid },
+        },
+      },
+      { $group: { _id: '$chatId', count: { $sum: 1 } } },
+    ]);
+
+    const byChat = {};
+    let total = 0;
+    for (const r of rows) {
+      byChat[r._id] = r.count;
+      total += r.count;
+    }
+
+    res.json({ success: true, data: { total, byChat } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ÇATI OXUNDU KİMİ İŞARƏLƏ (badge sıfırlamaq üçün)
+router.post('/read/:chatId', async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { uid } = req.body || {};
+
+    if (!uid) {
+      return res.status(400).json({ success: false, error: 'uid mütləqdir' });
+    }
+
+    const result = await Message.updateMany(
+      { chatId, participants: uid, readBy: { $ne: uid } },
+      { $addToSet: { readBy: uid } }
+    );
+
+    res.json({ success: true, data: { modifiedCount: result.modifiedCount ?? result.nModified ?? 0 } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ÇAT MESAJLARINI GÖTÜR
 router.get('/:chatId', async (req, res) => {
   try {
@@ -30,7 +79,8 @@ router.post('/', async (req, res) => {
       chatId,
       senderId,
       text: text.slice(0, 2000),
-      participants: participants || [senderId]
+      participants: participants || [senderId],
+      readBy: [senderId],
     });
 
     await message.save();

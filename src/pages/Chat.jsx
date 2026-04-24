@@ -45,7 +45,7 @@ export default function Chat() {
   }, [user]);
 
   const activeFriend = useMemo(
-    () => friends.find((f) => f.id === friendId) || null,
+    () => friends.find((f) => f.uid === friendId) || null,
     [friends, friendId],
   );
 
@@ -60,6 +60,7 @@ export default function Chat() {
       try {
         const res = await ApiService.messages.getChat(cid);
         if (res.success) setMessages(res.data);
+        await ApiService.messages.markRead(cid, user.uid);
       } catch (err) {
         console.error("Mesajlar yüklənmədi:", err);
       }
@@ -88,6 +89,7 @@ export default function Chat() {
       // Yenidən yüklə (Socket.io olduqda buna ehtiyac qalmayacaq)
       const res = await ApiService.messages.getChat(cid);
       if (res.success) setMessages(res.data);
+      await ApiService.messages.markRead(cid, user.uid);
     } finally {
       setSending(false);
     }
@@ -130,12 +132,12 @@ export default function Chat() {
           )}
           <ul className="space-y-1">
             {friends.map((f) => {
-              const active = f.id === friendId;
+              const active = f.uid === friendId;
               return (
-                <li key={f.id}>
+                <li key={f.uid}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/chat/${f.id}`)}
+                    onClick={() => navigate(`/chat/${f.uid}`)}
                     className={`flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm transition ${
                       active
                         ? "bg-emerald-500/15 text-emerald-50 ring-1 ring-emerald-400/50"
@@ -157,10 +159,12 @@ export default function Chat() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">
-                        {f.firstName} {f.lastName}
+                        {f.firstName || f.lastName
+                          ? `${f.firstName} ${f.lastName}`.trim()
+                          : f.email?.split("@")[0] || "Tələbə"}
                       </p>
                       <p className="truncate text-[11px] text-slate-500">
-                        {f.university}
+                        {f.university || "—"}
                       </p>
                     </div>
                   </button>

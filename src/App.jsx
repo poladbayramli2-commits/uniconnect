@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./context/AuthContext.jsx";
 import { Layout } from "./components/Layout.jsx";
 import Login from "./pages/Login.jsx";
+import LandingPage from "./pages/LandingPage.jsx";
 import Profile from "./pages/Profile.jsx";
 import Explore from "./pages/Explore.jsx";
 import Chat from "./pages/Chat.jsx";
@@ -9,6 +10,7 @@ import Admin from "./pages/Admin.jsx";
 import Frequency from "./pages/Frequency.jsx";
 import Letters from "./pages/Letters.jsx";
 import Games from "./pages/Games.jsx";
+import Notifications from "./pages/Notifications.jsx";
 
 function PrivateShell({ children }) {
   const { user, loading } = useAuth();
@@ -28,7 +30,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<LandingPage />} />
       <Route
         path="/login"
         element={user && !loading ? <Navigate to="/explore" replace /> : <Login />}
@@ -105,7 +107,15 @@ export default function App() {
           </PrivateShell>
         }
       />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route
+        path="/notifications"
+        element={
+          <PrivateShell>
+            <Notifications />
+          </PrivateShell>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

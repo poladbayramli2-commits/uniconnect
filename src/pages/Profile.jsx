@@ -19,6 +19,8 @@ import {
   UserPlus,
   UserCheck,
   Clock,
+  Plus,
+  X,
 } from "lucide-react";
 import { firebase, firebaseReady } from "../firebase.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -128,21 +130,49 @@ export default function Profile() {
 
   async function onSaveProfile(e) {
     e.preventDefault();
-    if (!user || !firebaseReady || !firebase) return;
+    console.log("Saving profile for user:", user?.uid);
+    if (!user) {
+      alert("İstifadəçi tapılmadı. Zəhmət olmasa yenidən giriş edin.");
+      return;
+    }
+    
+    // Manual Validation
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      alert("Ad və Soyad mütləqdir.");
+      return;
+    }
+    if (!form.university) {
+      alert("Zəhmət olmasa universiteti seçin.");
+      return;
+    }
+
     setSaving(true);
     try {
-      await upsertUserDocument(user, {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
+      const updateData = {
+        email: user.email,
+        firstName: (form.firstName || "").trim(),
+        lastName: (form.lastName || "").trim(),
         age: form.age === "" ? null : Number(form.age),
         course: form.course === "" ? null : Number(form.course),
         university: form.university,
-        major: form.major.trim(),
-        hobbies: form.hobbies,
+        major: (form.major || "").trim(),
+        hobbies: form.hobbies || [],
         photoURL: form.photoURL || "",
-        city: form.city.trim(),
+        city: (form.city || "").trim(),
         verifiedStudent: isVerifiedStudentEmail(user.email || ""),
-      });
+      };
+
+      console.log("Sending update to MongoDB:", updateData);
+      const res = await ApiService.users.updateProfile(user.uid, updateData);
+      console.log("Update response:", res);
+      
+      if (res.success) {
+        await refreshProfile();
+        alert("Profil uğurla yadda saxlanıldı!");
+      }
+    } catch (err) {
+      console.error("Profil yadda saxlanılarkən xəta:", err);
+      alert("Xəta baş verdi: " + (err.message || "Bilinməyən xəta"));
     } finally {
       setSaving(false);
     }
@@ -168,24 +198,26 @@ export default function Profile() {
 
   function toggleHobby(tag) {
     setForm((f) => {
-      const exists = f.hobbies.includes(tag);
+      const currentHobbies = Array.isArray(f.hobbies) ? f.hobbies : [];
+      const exists = currentHobbies.includes(tag);
       return {
         ...f,
         hobbies: exists
-          ? f.hobbies.filter((h) => h !== tag)
-          : [...f.hobbies, tag],
+          ? currentHobbies.filter((h) => h !== tag)
+          : [...currentHobbies, tag],
       };
     });
   }
 
   function addCustomHobby() {
-    const v = form.hobbyInput.trim();
+    const v = (form.hobbyInput || "").trim();
     if (!v) return;
-    setForm((f) =>
-      f.hobbies.includes(v)
+    setForm((f) => {
+      const currentHobbies = Array.isArray(f.hobbies) ? f.hobbies : [];
+      return currentHobbies.includes(v)
         ? { ...f, hobbyInput: "" }
-        : { ...f, hobbies: [...f.hobbies, v], hobbyInput: "" },
-    );
+        : { ...f, hobbies: [...currentHobbies, v], hobbyInput: "" };
+    });
   }
 
   async function handleFriendAction() {
@@ -238,7 +270,7 @@ export default function Profile() {
   const friendStatus = edge?.status;
   const isFriend = friendStatus === "accepted";
   const pendingInbound =
-    friendStatus === "pending" && edge?.senderId === target?.id;
+    friendStatus === "pending" && edge?.senderId === target?.uid;
   const pendingOutbound =
     friendStatus === "pending" && edge?.senderId === user?.uid;
 
@@ -446,7 +478,7 @@ export default function Profile() {
                 )}
                 {isFriend && (
                   <Link
-                    to={`/chat/${target.id}`}
+                    to={`/chat/${target.uid}`}
                     className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-white"
                   >
                     <MessageCircle className="h-4 w-4" />
@@ -645,50 +677,58 @@ export default function Profile() {
               <label className="mb-1 block text-xs text-slate-400">
                 Hobbilər (teqlər)
               </label>
-              <div className="mb-2 flex flex-wrap gap-2">
-                {HOBBY_SUGGESTIONS.map((h) => (
+              
+              {/* Seçilmiş Hobbilər */}
+              {form.hobbies.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {form.hobbies.map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => toggleHobby(h)}
+                      className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-medium text-emerald-50 ring-1 ring-emerald-400/60 hover:bg-emerald-500/30"
+                    >
+                      {h} <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="mb-3 flex flex-wrap gap-2">
+                {HOBBY_SUGGESTIONS.filter(h => !form.hobbies.includes(h)).map((h) => (
                   <button
                     key={h}
                     type="button"
                     onClick={() => toggleHobby(h)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium ring-1 transition ${
-                      form.hobbies.includes(h)
-                        ? "bg-emerald-500/20 text-emerald-50 ring-emerald-400/60"
-                        : "bg-slate-900 text-slate-300 ring-slate-700 hover:text-white"
-                    }`}
+                    className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 transition hover:border-slate-600 hover:text-white"
                   >
                     {h}
                   </button>
                 ))}
               </div>
+
               <div className="flex gap-2">
                 <input
                   className="flex-1 rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500/50"
-                  placeholder="Öz marağını yaz və əlavə et"
+                  placeholder="Öz marağını yaz..."
                   value={form.hobbyInput}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, hobbyInput: e.target.value }))
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addCustomHobby();
+                    }
+                  }}
                 />
                 <button
                   type="button"
                   onClick={addCustomHobby}
-                  className="rounded-xl border border-slate-700 px-3 text-sm text-slate-100 hover:border-emerald-500/50"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500 text-white transition hover:bg-violet-400 active:scale-95"
                 >
-                  Əlavə et
+                  <Plus className="h-5 w-5" />
                 </button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {form.hobbies.map((h) => (
-                  <button
-                    key={h}
-                    type="button"
-                    onClick={() => toggleHobby(h)}
-                    className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-100 ring-1 ring-slate-600"
-                  >
-                    {h} ×
-                  </button>
-                ))}
               </div>
             </div>
             <button
